@@ -2,6 +2,7 @@
   "name": "@hls-downloader/popup",
   "version": "0.0.0",
   "private": true,
+  "type": "module",
   "dependencies": {
     "@hls-downloader/core": "workspace:*",
     "@hls-downloader/design-system": "workspace:*",

@@ -62,9 +62,11 @@ export async function muxStreams({
     }
     args.push("-c:v", "copy", "-c:a", "copy", "-bsf:a", "aac_adtstoasc");
   } else if (hasVideo) {
-    args.push("-map", "0:v:0", "-c:v", "copy");
+    // Map all streams (video and audio) from the video file
+    // This handles muxed streams where audio is embedded in the video file
+    args.push("-map", "0", "-c", "copy");
     if (includeSubtitles) {
-      args.push("-map", `${hasAudio ? "2" : "1"}:s:0`);
+      args.push("-map", "1:s:0", "-c:s", "webvtt");
     }
   } else if (hasAudio) {
     args.push(
