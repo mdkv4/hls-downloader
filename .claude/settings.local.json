@@ -1,0 +1,21 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(pnpm run build:*)",
+      "Bash(dir:*)",
+      "Bash(pnpm run copy-assets:*)",
+      "Bash(pnpm run build:packages:*)",
+      "Bash(zip:*)",
+      "Bash(powershell -Command:*)",
+      "Bash(ls:*)",
+      "Bash(pnpm run clean:*)",
+      "Bash(claude config set:*)",
+      "Bash(claude config --help:*)",
+      "Bash(pnpm add:*)",
+      "Bash(npm run build:*)",
+      "Bash(pnpm install:*)",
+      "Bash(pnpm run build:core:*)",
+      "Bash(pnpm run build:background:*)"
+    ]
+  }
+}

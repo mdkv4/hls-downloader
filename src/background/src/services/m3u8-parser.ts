@@ -213,10 +213,31 @@ export const M3u8Parser: IParser = {
       }
     );
 
-    return results
+    const allLevels = results
       .concat(audioResults)
       .concat(subtitleResults)
       .concat(closedCaptionResults);
+
+    // If no variant streams were found but the manifest has segments,
+    // it's a media playlist — create a synthetic level for it.
+    if (allLevels.length === 0) {
+      const segments = parser.manifest.segments ?? [];
+      if (segments.length > 0) {
+        allLevels.push({
+          type: "stream" as LevelType,
+          id: v4(),
+          playlistID: baseurl,
+          uri: baseurl,
+          bitrate: undefined,
+          fps: undefined,
+          height: undefined,
+          width: undefined,
+          audioGroupId: undefined,
+        });
+      }
+    }
+
+    return allLevels;
   },
   inspectLevelEncryption(string: string, baseurl: string): ParsedEncryption {
     const parser = new Parser();

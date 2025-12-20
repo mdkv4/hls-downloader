@@ -79,7 +79,7 @@ export function addPlaylistListener(store: ReturnType<typeof createStore>) {
       });
     },
     {
-      types: ["xmlhttprequest"],
+      types: ["xmlhttprequest", "media", "other"],
       urls: [
         "http://*/*.m3u8",
         "https://*/*.m3u8",

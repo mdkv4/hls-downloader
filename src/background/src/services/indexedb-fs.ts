@@ -154,7 +154,7 @@ export class IndexedDBBucket implements Bucket {
     readonly id: string
   ) {
     const base = id.endsWith(".mp4") ? id.slice(0, -4) : id;
-    this.fileName = (filenamify(base) ?? "file").normalize("NFC");
+    this.fileName = (filenamify(base, { replacement: '-' }) ?? "file").normalize("NFC");
   }
 
   async cleanup() {
@@ -445,7 +445,25 @@ const saveAs: IFS["saveAs"] = async function (
   if (!downloadsApi?.download) {
     throw new Error("Downloads API unavailable");
   }
-  const filename = filenamify(path ?? "stream.mp4").normalize("NFC");
+  // Remove invisible Unicode control characters and other problematic characters
+  const cleanPath = (path ?? "stream.mp4")
+    // Remove all Unicode control characters (U+0000-U+001F, U+007F-U+009F)
+    .replace(/[\u0000-\u001F\u007F-\u009F]/g, '')
+    // Remove zero-width and directional formatting characters
+    .replace(/[\u200B-\u200F\u202A-\u202E\u2060-\u206F\uFEFF]/g, '')
+    // Remove other invisible characters
+    .replace(/[\u00AD\u034F\u061C\u115F\u1160\u17B4\u17B5\u180E]/g, '');
+
+  const filename = filenamify(cleanPath, { replacement: '-' }).normalize("NFC");
+
+  console.debug("[IndexedDBFS.saveAs v2] Download attempt:", {
+    version: 2,
+    original: path,
+    cleaned: cleanPath,
+    sanitized: filename,
+    hadInvisibleChars: path !== cleanPath,
+    changed: cleanPath !== filename
+  });
 
   await downloadsApi.download({
     url: link,

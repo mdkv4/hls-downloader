@@ -25,6 +25,7 @@
   },
   "dependencies": {
     "@reduxjs/toolkit": "1.9.3",
+    "filenamify": "^6.0.0",
     "redux": "4.2.1",
     "redux-logger": "3.0.6",
     "redux-observable": "2.0.0",
