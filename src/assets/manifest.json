@@ -3,6 +3,11 @@
   "name": "HLS Downloader",
   "description": "HTTP Live Stream downloader",
   "version": "5.2.0",
+  "browser_specific_settings": {
+    "gecko": {
+      "id": "hls-downloader@example.com"
+    }
+  },
   "browser_action": {
     "default_popup": "popup.html",
     "default_title": "HLS Downloader"

@@ -2,7 +2,7 @@
   "private": true,
   "packageManager": "pnpm@10.11.0",
   "scripts": {
-    "clean": "rimraf dist dist-mv2 dist-mv3 extension-*.zip extension-*.xpi && mkdir -p dist",
+    "clean": "node scripts/clean.mjs",
     "copy-assets": "node scripts/copy-assets.mjs",
     "prebuild": "pnpm run clean && pnpm run copy-assets",
     "build:core": "pnpm --filter ./src/core run build",
@@ -10,7 +10,7 @@
     "build:background": "pnpm --filter ./src/background run build",
     "build:popup": "pnpm --filter ./src/popup run build",
     "build:packages": "pnpm run build:core && pnpm run build:design-system && run-p build:background build:popup",
-    "build:zip": "DIST_DIR=${DIST_DIR:-dist}; ZIP_BASENAME=${ZIP_BASENAME:-extension}; (cd \"$DIST_DIR\" && zip -r \"../${ZIP_BASENAME}-chrome.zip\" . && if [ \"${MAKE_FIREFOX:-true}\" = \"true\" ]; then zip -r \"../${ZIP_BASENAME}-firefox.xpi\" .; fi)",
+    "build:zip": "node scripts/build-zip.mjs",
     "build": "pnpm run build:packages && pnpm run build:zip",
     "build:variant": "node scripts/build-variant.mjs",
     "build:mv2": "pnpm run build:variant -- --mv=mv2",
@@ -42,10 +42,11 @@
   },
   "devDependencies": {
     "@vitest/coverage-v8": "3.2.4",
+    "archiver": "^7.0.1",
     "badge-maker": "^5.0.2",
     "npm-run-all": "^4.1.5",
-    "rimraf": "^5.0.5",
-    "prettier": "2.8.7"
+    "prettier": "2.8.7",
+    "rimraf": "^5.0.10"
   },
   "pnpm": {
     "overrides": {
