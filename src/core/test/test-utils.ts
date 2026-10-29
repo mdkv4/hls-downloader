@@ -10,6 +10,7 @@ import type {
   IFS,
   Bucket,
   Dependencies,
+  PreparedDownload,
 } from "../src/services";
 import {
   Level,
@@ -19,6 +20,7 @@ import {
   Job,
   JobStatus,
 } from "../src/entities";
+import type { LevelType, OutputContainer } from "../src/entities";
 
 /**
  * Create mock loader with configurable responses
@@ -28,7 +30,7 @@ export function createMockLoader(
     textResponse?: string;
     bufferResponse?: ArrayBuffer;
     shouldFail?: boolean;
-  } = {}
+  } = {},
 ): ILoader {
   const {
     textResponse = "",
@@ -64,7 +66,7 @@ export function createMockDecryptor(): IDecryptor {
       .mockImplementation(
         (data: ArrayBuffer, keyData: ArrayBuffer, iv: Uint8Array) => {
           return Promise.resolve(new ArrayBuffer(data.byteLength));
-        }
+        },
       ),
   };
 }
@@ -76,7 +78,7 @@ export function createMockParser(
   options: {
     levels?: Level[];
     fragments?: Fragment[];
-  } = {}
+  } = {},
 ): IParser {
   const { levels = [], fragments = [] } = options;
 
@@ -97,23 +99,32 @@ export function createMockParser(
 export function createMockBucket(
   options: {
     link?: string;
-  } = {}
+  } = {},
 ): Bucket {
   const { link = "mock-link" } = options;
+  const download: PreparedDownload = {
+    url: link,
+    exportId: "mock-export.mp4",
+    mime: "video/mp4",
+    size: 42,
+  };
 
   return {
     write: vi.fn().mockResolvedValue(undefined),
-    getLink: vi
+    prepareDownload: vi
       .fn()
       .mockImplementation(
-        (onProgress?: (progress: number, message: string) => void) => {
+        (
+          onProgress?: (progress: number, message: string) => void,
+          _options?: { container?: OutputContainer },
+        ) => {
           if (onProgress) {
             onProgress(0, "Starting");
             onProgress(50, "Halfway");
             onProgress(100, "Complete");
           }
-          return Promise.resolve(link);
-        }
+          return Promise.resolve(download);
+        },
       ),
   };
 }
@@ -124,16 +135,33 @@ export function createMockBucket(
 export function createMockFS(
   options: {
     bucket?: Bucket;
-  } = {}
+    storageSnapshot?: any;
+  } = {},
 ): IFS {
-  const { bucket = createMockBucket() } = options;
+  const {
+    bucket = createMockBucket(),
+    storageSnapshot = {
+      buckets: [],
+      estimate: { source: "fallback" },
+      subtitlesBytes: 0,
+    },
+  } = options;
 
   return {
     cleanup: vi.fn().mockResolvedValue(undefined),
     getBucket: vi.fn().mockResolvedValue(bucket),
     createBucket: vi.fn().mockResolvedValue(undefined),
     deleteBucket: vi.fn().mockResolvedValue(undefined),
-    saveAs: vi.fn().mockResolvedValue(undefined),
+    setSubtitleText: vi.fn().mockResolvedValue(undefined),
+    getSubtitleText: vi.fn().mockResolvedValue(undefined),
+    prepareTextDownload: vi.fn().mockResolvedValue({
+      url: "blob:mock-text",
+      exportId: "legacy-text-mock",
+      mime: "text/plain",
+      size: 0,
+    }),
+    saveAs: vi.fn().mockResolvedValue(1),
+    getStorageStats: vi.fn().mockResolvedValue(storageSnapshot),
   };
 }
 
@@ -146,7 +174,7 @@ export function createMockDependencies(
     decryptor?: IDecryptor;
     parser?: IParser;
     fs?: IFS;
-  } = {}
+  } = {},
 ): Dependencies {
   const {
     loader = createMockLoader(),
@@ -174,7 +202,7 @@ export function createTestFragment(
     keyIv?: Uint8Array | null;
     fallbackUri?: string | null;
     keyFallbackUri?: string | null;
-  } = {}
+  } = {},
 ): Fragment {
   const {
     index = 0,
@@ -197,12 +225,12 @@ export function createTestLevel(
     id?: string;
     playlistID?: string;
     uri?: string;
-    type?: "stream" | "audio";
+    type?: LevelType;
     width?: number;
     height?: number;
     bitrate?: number;
     fps?: number;
-  } = {}
+  } = {},
 ): Level {
   const {
     id = `level-${Math.random().toString(36).substring(2, 9)}`,
@@ -228,7 +256,7 @@ export function createTestPlaylist(
     pageTitle?: string;
     initiator?: string;
     tabId?: number;
-  } = {}
+  } = {},
 ): Playlist {
   const {
     id = `playlist-${Math.random().toString(36).substring(2, 9)}`,
@@ -247,6 +275,7 @@ export function createTestPlaylist(
 export function createTestJob(
   options: {
     id?: string;
+    playlistId?: string;
     videoFragments?: Fragment[];
     audioFragments?: Fragment[];
     filename?: string;
@@ -254,10 +283,11 @@ export function createTestJob(
     height?: number;
     bitrate?: number;
     link?: string;
-  } = {}
+  } = {},
 ): Job {
   const {
     id = `job-${Math.random().toString(36).substring(2, 9)}`,
+    playlistId = "playlist-1",
     videoFragments = [
       createTestFragment({ index: 0 }),
       createTestFragment({ index: 1 }),
@@ -272,6 +302,7 @@ export function createTestJob(
 
   return new Job(
     id,
+    playlistId,
     videoFragments,
     audioFragments,
     filename,
@@ -279,7 +310,7 @@ export function createTestJob(
     width,
     height,
     bitrate,
-    link
+    link,
   );
 }
 
@@ -293,7 +324,7 @@ export function createTestJobStatus(
     done?: number;
     saveProgress?: number;
     saveMessage?: string;
-  } = {}
+  } = {},
 ): JobStatus {
   const {
     status = "downloading",
@@ -320,6 +351,7 @@ export function createMockState(
     playlists?: Record<string, Playlist | null>;
     playlistsStatus?: Record<string, any>;
     levels?: Record<string, Level | null>;
+    levelDurations?: Record<string, number | null | undefined>;
     jobs?: Record<string, Job | null>;
     jobsStatus?: Record<string, JobStatus | null>;
     concurrency?: number;
@@ -328,12 +360,14 @@ export function createMockState(
     tabId?: number;
     maxActiveDownloads?: number;
     preferredAudioLanguage?: string | null;
-  } = {}
+    outputContainer?: OutputContainer;
+  } = {},
 ): any {
   const {
     playlists = {},
     playlistsStatus = {},
     levels = {},
+    levelDurations = {},
     jobs = {},
     jobsStatus = {},
     concurrency = 2,
@@ -342,6 +376,7 @@ export function createMockState(
     tabId = 1,
     maxActiveDownloads = 0,
     preferredAudioLanguage = null,
+    outputContainer = "mp4",
   } = options;
 
   return {
@@ -351,6 +386,7 @@ export function createMockState(
     },
     levels: {
       levels,
+      durations: levelDurations,
     },
     jobs: {
       jobs,
@@ -362,6 +398,7 @@ export function createMockState(
       saveDialog,
       maxActiveDownloads,
       preferredAudioLanguage,
+      outputContainer,
     },
     tabs: {
       current: {

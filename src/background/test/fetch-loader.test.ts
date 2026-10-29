@@ -179,9 +179,7 @@ describe("FetchLoader", () => {
 
     it("throws last error when retries are exhausted", async () => {
       vi.useFakeTimers();
-      const fetchMock = vi
-        .fn()
-        .mockRejectedValue(new Error("Buffer failure"));
+      const fetchMock = vi.fn().mockRejectedValue(new Error("Buffer failure"));
       globalThis.fetch = fetchMock;
 
       const promise = fetchArrayBuffer("https://example.com/error.bin", 2);
@@ -197,6 +195,63 @@ describe("FetchLoader", () => {
         expect(error.value.message).toBe("Buffer failure");
       }
       expect(fetchMock).toHaveBeenCalledTimes(2);
+    });
+
+    it("sends Range header when byteRange is provided", async () => {
+      const mockBuffer = new ArrayBuffer(100);
+      const mockResponse = {
+        arrayBuffer: () => Promise.resolve(mockBuffer),
+        ok: true,
+        status: 206,
+      };
+      const fetchMock = vi.fn().mockResolvedValue(mockResponse);
+      globalThis.fetch = fetchMock;
+
+      const result = await fetchArrayBuffer("https://example.com/data.mp4", 1, {
+        offset: 833,
+        length: 50000,
+      });
+
+      expect(result).toBe(mockBuffer);
+      expect(fetchMock).toHaveBeenCalledWith("https://example.com/data.mp4", {
+        headers: { Range: "bytes=833-50832" },
+      });
+    });
+
+    it("slices the response when a byteRange request returns the full file", async () => {
+      const mockBuffer = new Uint8Array([0, 1, 2, 3, 4, 5, 6, 7]).buffer;
+      const mockResponse = {
+        arrayBuffer: () => Promise.resolve(mockBuffer),
+        ok: true,
+        status: 200,
+      };
+      const fetchMock = vi.fn().mockResolvedValue(mockResponse);
+      globalThis.fetch = fetchMock;
+
+      const result = await fetchArrayBuffer("https://example.com/data.mp4", 1, {
+        offset: 3,
+        length: 4,
+      });
+
+      expect(new Uint8Array(result)).toEqual(new Uint8Array([3, 4, 5, 6]));
+      expect(fetchMock).toHaveBeenCalledWith("https://example.com/data.mp4", {
+        headers: { Range: "bytes=3-6" },
+      });
+    });
+
+    it("does not send Range header without byteRange", async () => {
+      const mockBuffer = new ArrayBuffer(8);
+      const mockResponse = {
+        arrayBuffer: () => Promise.resolve(mockBuffer),
+        ok: true,
+        status: 200,
+      };
+      const fetchMock = vi.fn().mockResolvedValue(mockResponse);
+      globalThis.fetch = fetchMock;
+
+      await fetchArrayBuffer("https://example.com/data.bin");
+
+      expect(fetchMock).toHaveBeenCalledWith("https://example.com/data.bin");
     });
 
     it("does not retry HTTP errors for array buffers", async () => {

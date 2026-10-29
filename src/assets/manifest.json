@@ -2,12 +2,7 @@
   "manifest_version": 2,
   "name": "HLS Downloader",
   "description": "HTTP Live Stream downloader",
-  "version": "5.2.0",
-  "browser_specific_settings": {
-    "gecko": {
-      "id": "hls-downloader@example.com"
-    }
-  },
+  "version": "5.5.1",
   "browser_action": {
     "default_popup": "popup.html",
     "default_title": "HLS Downloader"
@@ -32,5 +27,14 @@
     "persistent": true
   },
   "web_accessible_resources": ["assets/**/*"],
-  "content_security_policy": "script-src 'self' 'wasm-unsafe-eval' 'unsafe-eval'; object-src 'self'"
+  "content_security_policy": "script-src 'self' 'wasm-unsafe-eval'; object-src 'self'",
+  "browser_specific_settings": {
+    "gecko": {
+      "id": "{e3ec0551-9bfa-4233-b9dd-6b36f6a80962}",
+      "strict_min_version": "128.0",
+      "data_collection_permissions": {
+        "required": ["none"]
+      }
+    }
+  }
 }

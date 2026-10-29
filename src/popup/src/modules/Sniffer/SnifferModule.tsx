@@ -9,33 +9,29 @@ const SnifferModule = () => {
     filter,
     setCurrentPlaylistId,
     playlists,
-    currentPlaylist,
-    currentPlaylistStatus,
+    hasPlaylists,
     currentPlaylistId,
     copyPlaylistsToClipboard,
+    removePlaylist,
     directURI,
     setDirectURI,
     addDirectPlaylist,
-    expandedPlaylists,
-    toggleExpandedPlaylist,
   } = useSnifferController();
 
   return (
     <SnifferView
       filter={filter}
       clearPlaylists={clearPlaylists}
+      removePlaylist={removePlaylist}
       copyPlaylistsToClipboard={copyPlaylistsToClipboard}
       setFilter={setFilter}
       setCurrentPlaylistId={setCurrentPlaylistId}
       playlists={playlists}
-      currentPlaylist={currentPlaylist}
-      currentPlaylistStatus={currentPlaylistStatus}
+      hasPlaylists={hasPlaylists}
       currentPlaylistId={currentPlaylistId}
       directURI={directURI}
       setDirectURI={setDirectURI}
       addDirectPlaylist={addDirectPlaylist}
-      expandedPlaylists={expandedPlaylists}
-      toggleExpandedPlaylist={toggleExpandedPlaylist}
     ></SnifferView>
   );
 };

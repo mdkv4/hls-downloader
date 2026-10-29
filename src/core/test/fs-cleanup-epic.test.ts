@@ -10,7 +10,11 @@ describe("fsCleanupOnInitEpic", () => {
       getBucket: vi.fn(),
       createBucket: vi.fn(),
       deleteBucket: vi.fn(),
+      setSubtitleText: vi.fn(),
+      getSubtitleText: vi.fn(),
+      prepareTextDownload: vi.fn(),
       saveAs: vi.fn(),
+      getStorageStats: vi.fn(),
     };
     const action$ = of({ type: "init/start" as const, payload: undefined });
     const result = await firstValueFrom(
@@ -19,7 +23,7 @@ describe("fsCleanupOnInitEpic", () => {
         loader: {} as any,
         decryptor: {} as any,
         parser: {} as any,
-      })
+      }),
     );
     expect(fs.cleanup).toHaveBeenCalled();
     expect(result.type).toBe("init/done");

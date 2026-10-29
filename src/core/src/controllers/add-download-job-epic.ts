@@ -11,6 +11,7 @@ import {
   storeSubtitleTextFactory,
 } from "../use-cases";
 import { jobsSlice } from "../store/slices/jobs-slice";
+import type { OutputContainer } from "../entities";
 
 export const addDownloadJobEpic: Epic<
   RootAction,
@@ -79,16 +80,22 @@ export const addDownloadJobEpic: Epic<
                 : Promise.resolve(null),
             ]);
 
-          const container = subtitleLevel ? "mkv" : "mp4";
+          const configuredContainer =
+            store$.value.config.outputContainer ?? "mp4";
+          const container: OutputContainer = subtitleLevel
+            ? "mkv"
+            : configuredContainer;
           const actions: RootAction[] = [
             jobsSlice.actions.add({
               job: {
                 id: jobId,
+                playlistId: playlist.id,
                 videoFragments,
                 audioFragments,
                 filename: generateFileName()(playlist, videoLevel, {
                   container,
                 }),
+                outputContainer: container,
                 createdAt: Date.now(),
                 bitrate: videoLevel.bitrate,
                 width: videoLevel.width,

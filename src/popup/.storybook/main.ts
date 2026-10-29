@@ -8,11 +8,12 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 
 const config: StorybookConfig = {
+  staticDirs: [{ from: "../../assets/assets", to: "/assets" }],
   stories: [
     "../src/**/*.stories.@(ts|tsx)",
     "../../design-system/src/**/*.stories.@(ts|tsx)",
   ],
-  addons: ["@storybook/addon-essentials"],
+  addons: ["@storybook/addon-docs"],
   framework: {
     name: "@storybook/react-vite",
     options: {},
@@ -21,9 +22,13 @@ const config: StorybookConfig = {
     return mergeConfig(config, {
       resolve: {
         alias: {
+          "webextension-polyfill": resolve(
+            __dirname,
+            "./webextension-polyfill.mock.ts",
+          ),
           "@hls-downloader/design-system": resolve(
             __dirname,
-            "../../design-system/src"
+            "../../design-system/src",
           ),
           "@hls-downloader/core/lib": resolve(__dirname, "../../core/src"),
           "@hls-downloader/core": resolve(__dirname, "../../core/src"),

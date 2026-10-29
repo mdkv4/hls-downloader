@@ -1,70 +1,119 @@
-import { FFmpeg } from "@ffmpeg/ffmpeg";
-import { fetchFile } from "@ffmpeg/util";
+import type { FFmpeg } from "@ffmpeg/ffmpeg";
 
 export type MuxRequest = {
   ffmpeg: FFmpeg;
   outputFileName: string;
-  videoBlob?: Blob;
-  audioBlob?: Blob;
+  videoData?: Uint8Array;
+  audioData?: Uint8Array;
   subtitleText?: string;
   subtitleLanguage?: string;
 };
 
+export type MuxExecRequest = {
+  ffmpeg: FFmpeg;
+  cleanupFileNames?: string[];
+} & MuxArgsRequest;
+
+export type MuxArgsRequest = {
+  outputFileName: string;
+  hasVideo: boolean;
+  hasAudio: boolean;
+  videoFileName?: string;
+  audioFileName?: string;
+  videoContainer?: MediaContainer;
+  audioContainer?: MediaContainer;
+  subtitleText?: string;
+  subtitleLanguage?: string;
+  outputFormat?: "mp4" | "matroska";
+};
+
 export type MuxResult = { blob: Blob; mime: string };
+export type MediaContainer = "mp4" | "mpegts";
+
+export function detectFmp4(data: Uint8Array): boolean {
+  if (data.length < 8) return false;
+  const boxType = String.fromCharCode(data[4], data[5], data[6], data[7]);
+  return boxType === "ftyp";
+}
+
+function isMp4ContainerFile(fileName: string): boolean {
+  return /\.(m4a|m4v|mp4)$/i.test(fileName);
+}
+
+function isMp4Container(fileName: string, container?: MediaContainer): boolean {
+  return container ? container === "mp4" : isMp4ContainerFile(fileName);
+}
+
+export function getMimeForOutputFile(fileName: string): string {
+  return /\.mkv$/i.test(fileName) ? "video/x-matroska" : "video/mp4";
+}
+
+export async function writeMediaToFFmpegFS(
+  ffmpeg: FFmpeg,
+  filename: string,
+  data: Uint8Array,
+): Promise<void> {
+  await ffmpeg.writeFile(filename, data);
+}
 
 async function writeSubtitles(
   ffmpeg: FFmpeg,
-  subtitleText: string | undefined
+  subtitleText: string | undefined,
 ) {
   if (subtitleText === undefined) {
     return;
   }
-  const blob = new Blob([subtitleText], { type: "text/vtt" });
-  await ffmpeg.writeFile("subtitles.vtt", await fetchFile(blob));
+  await ffmpeg.writeFile(
+    "subtitles.vtt",
+    new TextEncoder().encode(subtitleText),
+  );
 }
 
-export async function muxStreams({
-  ffmpeg,
+export function buildMuxArgs({
   outputFileName,
-  videoBlob,
-  audioBlob,
+  hasVideo,
+  hasAudio,
+  videoFileName = "video.ts",
+  audioFileName = "audio.ts",
+  videoContainer,
+  audioContainer,
   subtitleText,
   subtitleLanguage,
-}: MuxRequest): Promise<MuxResult> {
+  outputFormat,
+}: MuxArgsRequest): string[] {
   const includeSubtitles = subtitleText !== undefined;
-  const hasVideo = Boolean(videoBlob);
-  const hasAudio = Boolean(audioBlob);
 
-  if (hasVideo) {
-    await ffmpeg.writeFile("video.ts", await fetchFile(videoBlob!));
+  if (!hasVideo && !hasAudio) {
+    throw new Error("No media to mux");
   }
-  if (hasAudio) {
-    await ffmpeg.writeFile("audio.ts", await fetchFile(audioBlob!));
-  }
-  await writeSubtitles(ffmpeg, subtitleText);
+
+  const audioNeedsAdtsToAsc =
+    hasAudio && !isMp4Container(audioFileName, audioContainer);
 
   const args: string[] = ["-y"];
 
   if (hasVideo) {
-    args.push("-i", "video.ts");
+    args.push("-i", videoFileName);
   }
   if (hasAudio) {
-    args.push("-i", "audio.ts");
+    args.push("-i", audioFileName);
   }
   if (includeSubtitles) {
     args.push("-i", "subtitles.vtt");
   }
 
   if (hasVideo && hasAudio) {
-    args.push("-map", "0:v:0", "-map", "1:a:0");
+    args.push("-map", "0:v:0", "-map", "1:a:0?");
     if (includeSubtitles) {
       args.push("-map", "2:s:0");
     }
-    args.push("-c:v", "copy", "-c:a", "copy", "-bsf:a", "aac_adtstoasc");
+    args.push("-c:v", "copy", "-c:a", "copy");
+    if (audioNeedsAdtsToAsc) {
+      args.push("-bsf:a", "aac_adtstoasc");
+    }
   } else if (hasVideo) {
-    // Map all streams (video and audio) from the video file
-    // This handles muxed streams where audio is embedded in the video file
-    args.push("-map", "0", "-c", "copy");
+    // Map video + optional embedded audio, skip data/metadata streams
+    args.push("-map", "0:v", "-map", "0:a?", "-c", "copy");
     if (includeSubtitles) {
       args.push("-map", "1:s:0", "-c:s", "webvtt");
     }
@@ -77,13 +126,11 @@ export async function muxStreams({
       "-b:a",
       "192k",
       "-af",
-      "aresample=async=1:first_pts=0"
+      "aresample=async=1:first_pts=0",
     );
     if (includeSubtitles) {
       args.push("-map", "1:s:0");
     }
-  } else {
-    throw new Error("No media to mux");
   }
 
   if (includeSubtitles) {
@@ -91,20 +138,95 @@ export async function muxStreams({
     args.push("-metadata:s:s:0", `language=${subtitleLanguage || "und"}`);
   }
 
-  args.push("-shortest", outputFileName);
+  if (hasVideo && hasAudio) {
+    args.push("-shortest");
+  }
+  if (outputFormat) {
+    args.push("-f", outputFormat);
+  }
+  args.push(outputFileName);
+  return args;
+}
+
+export async function muxExec({
+  ffmpeg,
+  cleanupFileNames = [],
+  ...request
+}: MuxExecRequest): Promise<MuxResult> {
+  const {
+    outputFileName,
+    hasVideo,
+    hasAudio,
+    videoFileName = "video.ts",
+    audioFileName = "audio.ts",
+    subtitleText,
+  } = request;
+  const includeSubtitles = subtitleText !== undefined;
+
+  await writeSubtitles(ffmpeg, subtitleText);
+  const args = buildMuxArgs(request);
 
   try {
-    await ffmpeg.exec(args);
+    const exitCode = await ffmpeg.exec(args);
+    if (exitCode !== 0) {
+      throw new Error(`FFmpeg exited with code ${exitCode}`);
+    }
     const data = await ffmpeg.readFile(outputFileName);
-    const mime = includeSubtitles ? "video/x-matroska" : "video/mp4";
-    return { blob: new Blob([data], { type: mime }), mime };
+    const mime = getMimeForOutputFile(outputFileName);
+    const source =
+      typeof data === "string" ? new TextEncoder().encode(data) : data;
+    const bytes = new Uint8Array(source.byteLength);
+    bytes.set(source);
+    return { blob: new Blob([bytes.buffer], { type: mime }), mime };
   } finally {
-    try {
-      if (hasVideo) await ffmpeg.deleteFile("video.ts");
-      if (hasAudio) await ffmpeg.deleteFile("audio.ts");
-      if (includeSubtitles) await ffmpeg.deleteFile("subtitles.vtt");
-    } catch (_e) {
-      // best effort cleanup
+    const cleanupFiles = [
+      hasVideo ? videoFileName : null,
+      hasAudio ? audioFileName : null,
+      includeSubtitles ? "subtitles.vtt" : null,
+      outputFileName,
+      ...cleanupFileNames,
+    ].filter((fileName): fileName is string => fileName !== null);
+
+    for (const fileName of cleanupFiles) {
+      try {
+        await ffmpeg.deleteFile(fileName);
+      } catch (_e) {
+        // best effort cleanup
+      }
     }
   }
+}
+
+export async function muxStreams({
+  ffmpeg,
+  outputFileName,
+  videoData,
+  audioData,
+  subtitleText,
+  subtitleLanguage,
+}: MuxRequest): Promise<MuxResult> {
+  const videoFileName =
+    videoData && detectFmp4(videoData) ? "video.mp4" : "video.ts";
+  const audioFileName =
+    audioData && detectFmp4(audioData) ? "audio.mp4" : "audio.ts";
+
+  if (videoData) {
+    await writeMediaToFFmpegFS(ffmpeg, videoFileName, videoData);
+  }
+  if (audioData) {
+    await writeMediaToFFmpegFS(ffmpeg, audioFileName, audioData);
+  }
+
+  return muxExec({
+    ffmpeg,
+    outputFileName,
+    hasVideo: Boolean(videoData),
+    hasAudio: Boolean(audioData),
+    videoFileName,
+    audioFileName,
+    videoContainer: videoFileName.endsWith(".mp4") ? "mp4" : "mpegts",
+    audioContainer: audioFileName.endsWith(".mp4") ? "mp4" : "mpegts",
+    subtitleText,
+    subtitleLanguage,
+  });
 }

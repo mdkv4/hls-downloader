@@ -1,6 +1,7 @@
 import React from "react";
 import SettingsView from "./SettingsView";
 import useSettingsController from "./SettingsController";
+import { useStorageInfo } from "../../hooks/useStorageInfo";
 
 const SettingsModule = () => {
   const {
@@ -10,16 +11,21 @@ const SettingsModule = () => {
     onFetchAttemptsIncrease,
     fetchAttempts,
     onSaveDialogToggle,
+    onAutoDeleteAfterSaveToggle,
     saveDialog,
+    autoDeleteAfterSave,
     concurrency,
+    outputContainer,
     preferredAudioLanguage,
     onSetPreferredAudioLanguage,
+    onSetOutputContainer,
     maxActiveDownloads,
     activeDownloadsUnlimited,
     onActiveDownloadsDecrease,
     onActiveDownloadsIncrease,
     onActiveDownloadsUnlimited,
   } = useSettingsController();
+  const { storage, startCleanup, refreshStorage } = useStorageInfo();
 
   return (
     <SettingsView
@@ -27,10 +33,14 @@ const SettingsModule = () => {
       onFetchAttemptsDecrease={onFetchAttemptsDecrease}
       onFetchAttemptsIncrease={onFetchAttemptsIncrease}
       onSaveDialogToggle={onSaveDialogToggle}
+      onAutoDeleteAfterSaveToggle={onAutoDeleteAfterSaveToggle}
       saveDialog={saveDialog}
+      autoDeleteAfterSave={autoDeleteAfterSave}
       onConcurrencyDecrease={onConcurrencyDecrease}
       onConcurrencyIncrease={onConcurrencyIncrease}
       concurrency={concurrency}
+      outputContainer={outputContainer}
+      onSetOutputContainer={onSetOutputContainer}
       preferredAudioLanguage={preferredAudioLanguage}
       onSetPreferredAudioLanguage={onSetPreferredAudioLanguage}
       maxActiveDownloads={maxActiveDownloads}
@@ -38,6 +48,9 @@ const SettingsModule = () => {
       onActiveDownloadsDecrease={onActiveDownloadsDecrease}
       onActiveDownloadsIncrease={onActiveDownloadsIncrease}
       onActiveDownloadsUnlimited={onActiveDownloadsUnlimited}
+      storage={storage}
+      onCleanupStorage={startCleanup}
+      onRefreshStorage={refreshStorage}
     ></SettingsView>
   );
 };

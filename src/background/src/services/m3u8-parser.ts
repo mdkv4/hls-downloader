@@ -1,10 +1,21 @@
-/// <reference path="m3u8-parser.d.ts" />
-
-import { Fragment, Level, LevelType } from "@hls-downloader/core/lib/entities";
+import { Fragment, Level } from "@hls-downloader/core/lib/entities";
 import { IParser, ParsedEncryption } from "@hls-downloader/core/lib/services";
 import { Parser } from "m3u8-parser";
 import { buildAbsoluteURL } from "url-toolkit";
 import { v4 } from "uuid";
+
+function toIvBytes(iv?: Uint32Array): Uint8Array | null {
+  if (!iv) {
+    return null;
+  }
+
+  const bytes = new Uint8Array(iv.length * Uint32Array.BYTES_PER_ELEMENT);
+  const view = new DataView(bytes.buffer);
+  iv.forEach((word, index) => {
+    view.setUint32(index * Uint32Array.BYTES_PER_ELEMENT, word, false);
+  });
+  return bytes;
+}
 
 export const M3u8Parser: IParser = {
   parseLevelPlaylist(string: string, baseurl: string): Fragment[] {
@@ -32,11 +43,17 @@ export const M3u8Parser: IParser = {
             key:
               segment.key && segment.key.uri
                 ? {
-                    iv: segment.key.iv ?? null,
+                    iv: toIvBytes(segment.key.iv),
                     uri: buildAbsoluteURL(baseurl, segment.key.uri),
                   }
                 : { iv: null, uri: null },
             uri: mapUri,
+            byteRange: segment.map.byterange
+              ? {
+                  offset: segment.map.byterange.offset,
+                  length: segment.map.byterange.length,
+                }
+              : null,
           });
           index++;
           currentMapUri = mapUri;
@@ -49,11 +66,17 @@ export const M3u8Parser: IParser = {
         key:
           segment.key && segment.key.uri
             ? {
-                iv: segment.key.iv ?? null,
+                iv: toIvBytes(segment.key.iv),
                 uri: buildAbsoluteURL(baseurl, segment.key.uri),
               }
             : { iv: null, uri: null },
         uri: buildAbsoluteURL(baseurl, segment.uri),
+        byteRange: segment.byterange
+          ? {
+              offset: segment.byterange.offset,
+              length: segment.byterange.length,
+            }
+          : null,
       });
       index++;
     });
@@ -123,8 +146,8 @@ export const M3u8Parser: IParser = {
           characteristics: attrs["CHARACTERISTICS"],
         };
       });
-    const results = playlists.map((playlist) => ({
-      type: "stream" as LevelType,
+    const results: Level[] = playlists.map((playlist) => ({
+      type: "stream",
       id: v4(),
       playlistID: baseurl,
       uri: buildAbsoluteURL(baseurl, playlist.uri),
@@ -135,88 +158,97 @@ export const M3u8Parser: IParser = {
       audioGroupId: playlist.attributes.AUDIO,
     }));
 
-    const audioResults = Object.entries(audioPlaylists).flatMap(
+    const audioResults: Level[] = Object.entries(audioPlaylists).flatMap(
       ([key, entries]) => {
-        return Object.entries(entries).map(([label, entry]) => {
+        return Object.entries(entries).flatMap(([label, entry]) => {
           const extraAttributes = audioAttributes[key]?.[label];
-          return {
-            type: "audio" as LevelType,
-            id: `${label}-${key}`,
-            playlistID: baseurl,
-            uri: buildAbsoluteURL(baseurl, entry.uri),
-            bitrate: undefined,
-            fps: undefined,
-            width: undefined,
-            height: undefined,
-            language: entry.language ?? entry.lang,
-            name: entry.name ?? label,
-            characteristics:
-              entry.characteristics ?? extraAttributes?.characteristics,
-            channels: entry.channels ?? extraAttributes?.channels,
-            isDefault: entry.default ?? undefined,
-            autoSelect: entry.autoselect ?? undefined,
-            groupId: key,
-          };
+          if (!entry.uri) {
+            return [];
+          }
+          return [
+            {
+              type: "audio",
+              id: `${label}-${key}`,
+              playlistID: baseurl,
+              uri: buildAbsoluteURL(baseurl, entry.uri),
+              bitrate: undefined,
+              fps: undefined,
+              width: undefined,
+              height: undefined,
+              language: entry.language,
+              name: label,
+              characteristics:
+                entry.characteristics ?? extraAttributes?.characteristics,
+              channels: extraAttributes?.channels,
+              isDefault: entry.default,
+              autoSelect: entry.autoselect,
+              groupId: key,
+            },
+          ];
         });
-      }
+      },
     );
 
-    const subtitleResults = Object.entries(subtitlePlaylists).flatMap(
+    const subtitleResults: Level[] = Object.entries(subtitlePlaylists).flatMap(
       ([groupId, entries]) => {
-        return Object.entries(entries)
-          .map(([label, entry]) => {
-            const extraAttributes = subtitleAttributes[groupId]?.[label];
-            if (!entry.uri) {
-              return null;
-            }
-            return {
-              type: "subtitle" as LevelType,
+        return Object.entries(entries).flatMap(([label, entry]) => {
+          const extraAttributes = subtitleAttributes[groupId]?.[label];
+          if (!entry.uri) {
+            return [];
+          }
+          return [
+            {
+              type: "subtitle",
               id: `${label}-${groupId}`,
               playlistID: baseurl,
               uri: buildAbsoluteURL(baseurl, entry.uri),
-              language: entry.language ?? entry.lang,
-              name: entry.name ?? label,
+              language: entry.language,
+              name: label,
               characteristics:
                 entry.characteristics ?? extraAttributes?.characteristics,
-              isDefault: entry.default ?? undefined,
-              autoSelect: entry.autoselect ?? undefined,
-              forced: entry.forced ?? extraAttributes?.forced ?? undefined,
+              isDefault: entry.default,
+              autoSelect: entry.autoselect,
+              forced: entry.forced ?? extraAttributes?.forced,
               groupId,
-            };
-          })
-          .flatMap((entry) => (entry ? [entry] : []));
-      }
+            },
+          ];
+        });
+      },
     );
 
-    const closedCaptionResults = Object.entries(closedCaptions).flatMap(
+    const closedCaptionResults: Level[] = Object.entries(
+      closedCaptions,
+    ).flatMap(
       ([groupId, entries]) => {
-        return Object.entries(entries)
-          .map(([label, entry]) => {
-            if (!entry.uri) {
-              return null;
-            }
-            return {
-              type: "subtitle" as LevelType,
+        return Object.entries(entries).flatMap(([label, entry]) => {
+          if (!entry.uri) {
+            return [];
+          }
+          return [
+            {
+              type: "subtitle",
               id: `${label}-${groupId}-cc`,
               playlistID: baseurl,
               uri: buildAbsoluteURL(baseurl, entry.uri),
-              language: entry.language ?? entry.lang,
-              name: entry.name ?? label,
+              language: entry.language,
+              name: label,
               characteristics: entry.characteristics,
               instreamId: entry.instreamId,
-              isDefault: entry.default ?? undefined,
-              autoSelect: entry.autoselect ?? undefined,
+              isDefault: entry.default,
+              autoSelect: entry.autoselect,
               groupId,
-            };
-          })
-          .flatMap((entry) => (entry ? [entry] : []));
-      }
+            },
+          ];
+        });
+      },
     );
 
-    const allLevels = results
-      .concat(audioResults)
-      .concat(subtitleResults)
-      .concat(closedCaptionResults);
+    const allLevels: Level[] = [
+      ...results,
+      ...audioResults,
+      ...subtitleResults,
+      ...closedCaptionResults,
+    ];
 
     // If no variant streams were found but the manifest has segments,
     // it's a media playlist — create a synthetic level for it.
@@ -224,7 +256,7 @@ export const M3u8Parser: IParser = {
       const segments = parser.manifest.segments ?? [];
       if (segments.length > 0) {
         allLevels.push({
-          type: "stream" as LevelType,
+          type: "stream",
           id: v4(),
           playlistID: baseurl,
           uri: baseurl,
@@ -265,8 +297,8 @@ export const M3u8Parser: IParser = {
           iv = key.iv;
         } else if (ArrayBuffer.isView(key.iv)) {
           if (key.iv instanceof Uint32Array) {
-            iv = `0x${Array.from(key.iv)
-              .map((v) => v.toString(16).padStart(8, "0"))
+            iv = `0x${Array.from(key.iv as Uint32Array)
+              .map((word) => word.toString(16).padStart(8, "0"))
               .join("")}`;
             return;
           }
@@ -278,8 +310,8 @@ export const M3u8Parser: IParser = {
                   key.iv.byteOffset,
                   key.iv.byteLength
                 );
-          iv = `0x${Array.from(view)
-            .map((v) => v.toString(16).padStart(2, "0"))
+          iv = `0x${Array.from(view as Uint8Array)
+            .map((byte) => byte.toString(16).padStart(2, "0"))
             .join("")}`;
         }
       }

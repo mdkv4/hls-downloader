@@ -24,7 +24,8 @@ for (const dir of dirsToRemove) {
 // Remove extension archives
 const files = readdirSync(rootDir);
 const extensionFiles = files.filter(f =>
-  f.startsWith('extension-') && (f.endsWith('.zip') || f.endsWith('.xpi'))
+  (f.startsWith('extension-') && (f.endsWith('.zip') || f.endsWith('.xpi'))) ||
+  (f.startsWith('source-code') && f.endsWith('.zip'))
 );
 
 for (const file of extensionFiles) {

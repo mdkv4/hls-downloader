@@ -1,5 +1,6 @@
 import type { Meta, StoryObj } from "@storybook/react";
 import SettingsView from "./SettingsView";
+import type { StorageState } from "@hls-downloader/core/lib/store/slices/storage-slice";
 
 const meta: Meta<typeof SettingsView> = {
   title: "popup/views/SettingsView",
@@ -9,6 +10,17 @@ const meta: Meta<typeof SettingsView> = {
 export default meta;
 type Story = StoryObj<typeof SettingsView>;
 
+const storage: StorageState = {
+  loading: false,
+  buckets: {},
+  totalUsedBytes: 0,
+  quotaExempt: false,
+  quotaIsAdvisory: false,
+  estimateSource: "unknown",
+  nearQuota: false,
+  cleanupStatus: "idle",
+};
+
 export const Default: Story = {
   render: () => (
     <SettingsView
@@ -17,6 +29,8 @@ export const Default: Story = {
       activeDownloadsUnlimited={false}
       fetchAttempts={5}
       saveDialog={true}
+      autoDeleteAfterSave={false}
+      outputContainer="mp4"
       onConcurrencyIncrease={() => {}}
       onConcurrencyDecrease={() => {}}
       onActiveDownloadsIncrease={() => {}}
@@ -25,8 +39,13 @@ export const Default: Story = {
       onFetchAttemptsIncrease={() => {}}
       onFetchAttemptsDecrease={() => {}}
       onSaveDialogToggle={() => {}}
+      onAutoDeleteAfterSaveToggle={() => {}}
+      onSetOutputContainer={() => {}}
       preferredAudioLanguage={"eng"}
       onSetPreferredAudioLanguage={() => {}}
+      storage={storage}
+      onCleanupStorage={() => {}}
+      onRefreshStorage={() => {}}
     />
   ),
 };
@@ -39,6 +58,8 @@ export const Minimal: Story = {
       activeDownloadsUnlimited={true}
       fetchAttempts={1}
       saveDialog={false}
+      autoDeleteAfterSave={true}
+      outputContainer="mkv"
       onConcurrencyIncrease={() => {}}
       onConcurrencyDecrease={() => {}}
       onActiveDownloadsIncrease={() => {}}
@@ -47,8 +68,13 @@ export const Minimal: Story = {
       onFetchAttemptsIncrease={() => {}}
       onFetchAttemptsDecrease={() => {}}
       onSaveDialogToggle={() => {}}
+      onAutoDeleteAfterSaveToggle={() => {}}
+      onSetOutputContainer={() => {}}
       preferredAudioLanguage={null}
       onSetPreferredAudioLanguage={() => {}}
+      storage={storage}
+      onCleanupStorage={() => {}}
+      onRefreshStorage={() => {}}
     />
   ),
 };

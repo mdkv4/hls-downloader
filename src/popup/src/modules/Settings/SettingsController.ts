@@ -1,5 +1,6 @@
-import { RootState } from "@hls-downloader/core/lib/store/root-reducer";
+import type { RootState } from "@hls-downloader/core/lib/store/root-reducer";
 import { configSlice } from "@hls-downloader/core/lib/store/slices";
+import type { OutputContainer } from "@hls-downloader/core/lib/entities";
 import { useDispatch, useSelector } from "react-redux";
 
 interface ReturnType {
@@ -7,9 +8,12 @@ interface ReturnType {
   maxActiveDownloads: number;
   fetchAttempts: number;
   saveDialog: boolean;
+  autoDeleteAfterSave: boolean;
+  outputContainer: OutputContainer;
   onFetchAttemptsIncrease: () => void;
   onFetchAttemptsDecrease: () => void;
   onSaveDialogToggle: () => void;
+  onAutoDeleteAfterSaveToggle: () => void;
   onConcurrencyIncrease: () => void;
   onConcurrencyDecrease: () => void;
   onActiveDownloadsIncrease: () => void;
@@ -17,6 +21,7 @@ interface ReturnType {
   onActiveDownloadsUnlimited: () => void;
   preferredAudioLanguage: string | null;
   onSetPreferredAudioLanguage: (lang: string | null) => void;
+  onSetOutputContainer: (outputContainer: OutputContainer) => void;
   activeDownloadsUnlimited: boolean;
 }
 
@@ -36,6 +41,12 @@ const useSettingsController = (): ReturnType => {
   );
   const preferredAudioLanguage = useSelector<RootState, string | null>(
     (state) => state.config.preferredAudioLanguage
+  );
+  const autoDeleteAfterSave = useSelector<RootState, boolean>(
+    (state) => state.config.autoDeleteAfterSave
+  );
+  const outputContainer = useSelector<RootState, OutputContainer>(
+    (state) => state.config.outputContainer ?? "mp4"
   );
   const activeDownloadsUnlimited = maxActiveDownloads === 0;
 
@@ -97,11 +108,25 @@ const useSettingsController = (): ReturnType => {
       })
     );
   }
+  function onAutoDeleteAfterSaveToggle() {
+    dispatch(
+      configSlice.actions.setAutoDeleteAfterSave({
+        autoDeleteAfterSave: !autoDeleteAfterSave,
+      })
+    );
+  }
   function onSetPreferredAudioLanguage(lang: string | null) {
     const normalized = (lang ?? "").trim();
     dispatch(
       configSlice.actions.setPreferredAudioLanguage({
         preferredAudioLanguage: normalized || null,
+      })
+    );
+  }
+  function onSetOutputContainer(outputContainer: OutputContainer) {
+    dispatch(
+      configSlice.actions.setOutputContainer({
+        outputContainer,
       })
     );
   }
@@ -116,11 +141,15 @@ const useSettingsController = (): ReturnType => {
     onActiveDownloadsUnlimited,
     fetchAttempts,
     saveDialog,
+    autoDeleteAfterSave,
+    outputContainer,
     onFetchAttemptsIncrease,
     onFetchAttemptsDecrease,
     onSaveDialogToggle,
+    onAutoDeleteAfterSaveToggle,
     preferredAudioLanguage,
     onSetPreferredAudioLanguage,
+    onSetOutputContainer,
   };
 };
 

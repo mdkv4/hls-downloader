@@ -1,15 +1,13 @@
-import { configureStore, Middleware } from "@reduxjs/toolkit";
+import { configureStore, Tuple } from "@reduxjs/toolkit";
 import { createEpicMiddleware } from "redux-observable";
 import { createRootEpic } from "../controllers/root-epic";
 import { Dependencies } from "../services";
-import { rootReducer, RootState, RootAction } from "./root-reducer";
-import logger from "redux-logger";
-
-const _dummy: Middleware = () => (next) => (action) => next(action);
+import { rootReducer, RootAction, RootState } from "./root-reducer";
+import { logger } from "redux-logger";
 
 export function createStore(
   dependencies: Dependencies,
-  preloadedState?: Partial<RootState>
+  preloadedState?: Partial<RootState>,
 ) {
   const epicMiddleware = createEpicMiddleware<
     RootAction,
@@ -18,10 +16,9 @@ export function createStore(
   >({ dependencies });
 
   const rootEpic = createRootEpic();
-
-  const store = configureStore<RootState, RootAction, Middleware[]>({
+  const store = configureStore({
     reducer: rootReducer,
-    middleware: [logger, epicMiddleware],
+    middleware: () => new Tuple(logger, epicMiddleware),
     preloadedState,
   });
 

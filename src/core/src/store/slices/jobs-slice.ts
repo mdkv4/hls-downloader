@@ -36,7 +36,6 @@ export interface ISaveAsJobPayload {
 }
 export interface ISaveAsJobSuccessPayload {
   jobId: string;
-  link?: string;
 }
 export interface ISetSaveProgressPayload {
   jobId: string;
@@ -46,7 +45,7 @@ export interface ISetSaveProgressPayload {
 
 interface IJobsReducers {
   download: CaseReducer<IJobsState, PayloadAction<IDownloadJobPayload>>;
-  clear: CaseReducer<IJobsState, PayloadAction<any>>;
+  clear: CaseReducer<IJobsState>;
   add: CaseReducer<IJobsState, PayloadAction<IAddJobPayload>>;
   queue: CaseReducer<IJobsState, PayloadAction<IDownloadJobPayload>>;
   cancel: CaseReducer<IJobsState, PayloadAction<IDeleteJobPayload>>;
@@ -146,7 +145,8 @@ export const jobsSlice: Slice<IJobsState, IJobsReducers, "jobs"> = createSlice({
     },
     finishDownload(state, action: PayloadAction<IFinishJobDownloadPayload>) {
       const { jobId: jobId } = action.payload;
-      const jobStatus = state.jobsStatus[jobId]!;
+      const jobStatus = state.jobsStatus[jobId];
+      if (!jobStatus) return;
 
       jobStatus.done = jobStatus.total;
       jobStatus.status = "ready";
@@ -166,33 +166,34 @@ export const jobsSlice: Slice<IJobsState, IJobsReducers, "jobs"> = createSlice({
     },
     incDownloadStatus(
       state,
-      action: PayloadAction<IIncJobDownloadStatusPayload>
+      action: PayloadAction<IIncJobDownloadStatusPayload>,
     ) {
       const { jobId: jobId } = action.payload;
-      const jobStatus = state.jobsStatus[jobId]!;
+      const jobStatus = state.jobsStatus[jobId];
+      if (!jobStatus) return;
 
       jobStatus.done++;
     },
     saveAs(state, action: PayloadAction<ISaveAsJobPayload>) {
       const { jobId } = action.payload;
-      const jobStatus = state.jobsStatus[jobId]!;
+      const jobStatus = state.jobsStatus[jobId];
+      if (!jobStatus) return;
 
       jobStatus.status = "saving";
     },
     saveAsSuccess(state, action: PayloadAction<ISaveAsJobSuccessPayload>) {
       const { jobId: jobId } = action.payload;
-      const job = state.jobs[jobId]!;
-      const jobStatus = state.jobsStatus[jobId]!;
-      job.link = action.payload.link;
+      const job = state.jobs[jobId];
+      const jobStatus = state.jobsStatus[jobId];
+      if (!job || !jobStatus) return;
       jobStatus.status = "done";
     },
     setSaveProgress(state, action: PayloadAction<ISetSaveProgressPayload>) {
       const { jobId, progress, message } = action.payload;
-      const jobStatus = state.jobsStatus[jobId]!;
-      if (jobStatus) {
-        jobStatus.saveProgress = progress;
-        jobStatus.saveMessage = message;
-      }
+      const jobStatus = state.jobsStatus[jobId];
+      if (!jobStatus) return;
+      jobStatus.saveProgress = progress;
+      jobStatus.saveMessage = message;
     },
   },
 });
